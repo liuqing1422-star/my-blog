@@ -1,0 +1,233 @@
+<!DOCTYPE html> <!-- 声明文档类型为 HTML5 标准 -->
+<html lang="zh"> <!-- 声明网页语言为中文 -->
+<head> <!-- 网页头部，包含元数据和样式 -->
+  <meta charset="UTF-8"> <!-- 设置字符编码为 UTF-8，防止中文乱码 -->
+  <title>平滑时钟 - 带刻度 (贴边版)</title> <!-- 网页标签页的标题 -->
+  <style>
+    /* === 全局与布局样式 === */
+    body {
+      display: flex; /* 使用弹性盒子布局，方便内部元素居中 */
+     /* justify-content: center;  让钟表在水平方向居中对齐 */
+      align-items: center; /* 让钟表在垂直方向居中对齐 */
+      height: 100vh; /* 设置 body 高度为视口高度的 100%，确保垂直居中生效 */
+      background-color: #f5f5f5; /* 设置页面背景色为浅灰色，与表盘形成对比 */
+      margin: 0; /* 清除 body 的默认外边距，消除页面四周的留白 */
+    }
+
+    /* === 钟表主容器 === */
+    #clock {
+      margin-left: 500px;
+      width: 320px; /* 设置钟表的宽度 */
+      height: 320px; /* 设置钟表的高度（宽高一致保证是正圆） */
+      background: #bd7676; /* 设置表盘背景色为白色 */
+      border: 12px solid #363d89; /* 设置 12px 宽的灰色边框，模拟银色金属外圈 */
+      border-radius: 50%; /* 将正方形的四个角变成 50% 的圆角，从而变成正圆 */
+      box-shadow: 0 5px 20px rgba(0,0,0,0.15), inset 0 0 10px rgba(0,0,0,0.05); /* 添加外阴影(立体感)和内阴影(凹陷感) */
+      position: relative; /* 设置相对定位，作为内部所有绝对定位元素的参考坐标原点 */
+      font-family: Arial, sans-serif; /* 设置表盘内的默认字体 */
+    }
+
+    /* === 刻度点样式 === */
+    .tick {
+      position: absolute; /* 绝对定位，相对于 #clock 定位 */
+      top: 50%; /* 垂直方向定位到父容器 50% 的位置 */
+      left: 50%; /* 水平方向定位到父容器 50% 的位置 */
+      width: 3px; /* 小刻度点的宽度 */
+      height: 3px; /* 小刻度点的高度（宽高一致形成正方形） */
+      background: #111; /* 刻度点的颜色为深黑色 */
+      border-radius: 50%; /* 将正方形变成圆形 */
+      margin: -1.5px 0 0 -1.5px; /* 设置负边距，使其真正的中心点与表盘中心重合（宽高的一半） */
+    }
+
+    /* 整点位置的大刻度 */
+    .tick.major {
+      width: 6px; /* 整点刻度点宽度变大 */
+      height: 6px; /* 整点刻度点高度变大 */
+      margin: -3px 0 0 -3px; /* 因为尺寸变大，负边距也需要同步调整为宽高的一半，保证居中 */
+      background: #000; /* 颜色变为纯黑，更醒目 */
+    }
+
+    /* === 数字样式 === */
+    .num {
+      position: absolute; /* 绝对定位 */
+      top: 50%; /* 垂直居中 */
+      left: 50%; /* 水平居中 */
+      font-size: 30px; /* 设置数字大小 */
+      font-weight: bold; /* 设置数字加粗 */
+      color: #eaeaed; /* 设置数字颜色 */
+      /* 核心技巧：利用多重变换将数字均匀排列在圆形边缘，并保持正向 */
+      transform: translate(-50%, -50%) /* 1. 居中：修正元素的几何中心与定位点重合 */
+                 rotate(var(--deg))    /* 2. 旋转：根据 JS 传入的角度，绕表盘中心旋转 */
+                 translateY(-120px)    /* 3. 平移：将数字从中心向外推，【调整这里可以改变数字离边缘的距离】 */
+                 rotate(calc(var(--deg) * -1)); /* 4. 反向旋转：抵消第2步的旋转，保证数字本身是正立的，不歪头 */
+    }
+
+    /* === 指针通用样式 === */
+    .hand {
+      position: absolute; /* 绝对定位 */
+      left: 50%; /* 让指针的水平中线对齐表盘中心 */
+      background: #222; /* 指针的颜色 */
+      border-radius: 6px; /* 给指针两端增加一点圆角，显得不那么锐利 */
+      transform-origin: bottom center; /* 核心：将旋转轴心设置在指针的 底部中心点 */
+    }
+
+    /* 时针 */
+    .hour { 
+      width: 8px; /* 时针宽度，较粗 */
+      height: 70px; /* 时针长度 */
+      bottom: 50%; /* 底部定位在 50% 处，配合旋转轴心，让针绕中心点转 */
+      margin-left: -4px; /* 负边距为宽度的一半，修正水平居中 */
+      background-color: #080f94;
+    }
+
+    /* 分针 */
+    .minute { 
+      width: 6px; /* 分针宽度，中等 */
+      height: 105px; /* 分针长度，比时针长 */
+      bottom: 50%; /* 同上 */
+      margin-left: -3px; /* 负边距为宽度的一半 */
+      background-color: #0c6022;
+    }
+
+    /* 秒针 */
+    .second { 
+      width: 2px; /* 秒针宽度，极细 */
+      height: 120px; /* 秒针最长 */
+      bottom: 50%; /* 同上 */
+      margin-left: -1px; /* 负边距为宽度的一半 */
+      background: #d32f2f; /* 经典的红色秒针，也可改回 #222 */
+      z-index: 5; /* 层级设置：让秒针显示在时针和分针之上 */
+      border-radius: 2px; /* 秒针极细，圆角调小 */
+    }
+
+    /* === 指针尾部延伸（利用伪元素） === */
+    /* 为时针、分针、秒针添加一个下侧的“尾巴”，使其贯穿中心点 */
+    .hour::after, .minute::after, .second::after {
+      content: ""; /* 伪元素必须有 content 属性才能显示 */
+      position: absolute; /* 绝对定位相对于对应的指针 */
+      bottom: -15px; /* 从指针底部向下延伸 15px */
+      left: 50%; /* 水平居中 */
+      transform: translateX(-50%); /* 修正水平居中的偏移 */
+      background: inherit; /* 继承父元素（指针）的背景色 */
+      border-radius: inherit; /* 继承父元素的圆角 */
+    }
+    .hour::after { width: 8px; height: 20px; } /* 时针尾部尺寸 */
+    .minute::after { width: 6px; height: 25px; } /* 分针尾部尺寸 */
+    .second::after { width: 2px; height: 30px; } /* 秒针尾部尺寸 */
+
+    /* 中心圆点 */
+    .dot {
+      position: absolute; /* 绝对定位 */
+      top: 50%; /* 垂直居中 */
+      left: 50%; /* 水平居中 */
+      width: 16px; /* 圆点宽度 */
+      height: 16px; /* 圆点高度 */
+      margin: -8px 0 0 -8px; /* 负边距为宽高的一半，实现真正的几何居中 */
+      background: #6f9205; /* 颜色与指针统一 */
+      border-radius: 50%; /* 变圆 */
+      z-index: 10; /* 层级最高：盖住所有指针的交叉处，显得美观 */
+    }
+
+    /* 底部文字 */
+    .brand {
+      position: absolute; /* 绝对定位 */
+      top: 68%; /* 位于表盘中下部 */
+      left: 50%; /* 水平居中 */
+      transform: translateX(-50%); /* 修正居中偏移 */
+      font-size: 11px; /* 字体大小 */
+      color: #999; /* 字体颜色为浅灰 */
+      letter-spacing: 1px; /* 字间距稍微拉开一点 */
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 钟表的容器 -->
+  <div id="clock"></div>
+
+  <script>
+    // 获取 HTML 中的钟表容器元素
+    const clock = document.getElementById('clock');
+
+    // === 1. 动态生成 60 个刻度点 ===
+    for (let i = 0; i < 60; i++) {
+      // 创建一个 div 元素用作刻度
+      const tick = document.createElement('div');
+      // 给它添加基础类名 tick
+      tick.className = 'tick';
+      
+      // 判断是否是整点（每 5 个刻度即 i 能被 5 整除时是整点）
+      if (i % 5 === 0) {
+        // 如果是整点，追加一个 major 类名，使其变大变粗
+        tick.classList.add('major');
+      }
+      
+      // 计算当前刻度的旋转角度：一圈 360 度，分成 60 份，每份 6 度
+      const deg = i * 6;
+      // 将刻度旋转对应角度，然后向外平移。【修改 -142px 可以调节刻度离边框的距离】
+      tick.style.transform = `rotate(${deg}deg) translateY(-144px)`;
+      // 将生成好的刻度点插入到钟表容器中
+      clock.appendChild(tick);
+    }
+
+    // === 2. 动态生成 1-12 的数字 ===
+    for (let i = 1; i <= 12; i++) {
+      // 创建一个 div 元素用作数字
+      const num = document.createElement('div');
+      // 设置类名为 num
+      num.className = 'num';
+      // 设置显示的文本内容为当前数字 i
+      num.innerText = i;
+      // 在元素的行内样式中定义一个 CSS 变量 --deg，角度为 30 度乘上数字
+      num.style.setProperty('--deg', `${i * 30}deg`);
+      // 将数字元素插入钟表容器
+      clock.appendChild(num);
+    }
+
+    // === 3. 插入指针、中心点和文字（使用 innerHTML 避免频繁创建 DOM） ===
+    // 注意使用 += 追加，这样不会覆盖前面生成的刻度和数字
+    clock.innerHTML += `
+      <div class="hand hour"></div>   <!-- 时针 -->
+      <div class="hand minute"></div> <!-- 分针 -->
+      <div class="hand second"></div> <!-- 秒针 -->
+      <div class="dot"></div>         <!-- 中心圆点 -->
+      <div class="brand">quartz</div> <!-- 底部品牌文字 -->
+    `;
+
+    // 获取时针、分针、秒针的 DOM 元素，方便后续操纵它们
+    const hourHand = document.querySelector('.hour');
+    const minuteHand = document.querySelector('.minute');
+    const secondHand = document.querySelector('.second');
+
+    // === 4. 核心平滑动画函数 ===
+    function updateClock() {
+      // 获取当前的系统时间
+      const now = new Date();
+      
+      // 获取当前的毫秒数 (0-999)
+      const ms = now.getMilliseconds();
+      // 获取包含毫秒的“秒”数，例如 15秒500毫秒 -> 15.5
+      const s = now.getSeconds() + ms / 1000; 
+      // 获取包含秒的“分”数，例如 30分15.5秒 -> 30.2583
+      const m = now.getMinutes() + s / 60;    
+      // 获取包含分的“时”数（对12取余，转为12小时制）
+      const h = (now.getHours() % 12) + m / 60; 
+
+      // 应用旋转：角度 = 时间 * 每单位时间对应的角度
+      // 秒针：1秒转 6 度 (360度 / 60秒)
+      secondHand.style.transform = `rotate(${s * 6}deg)`;
+      // 分针：1分钟转 6 度
+      minuteHand.style.transform = `rotate(${m * 6}deg)`;
+      // 时针：1小时转 30 度 (360度 / 12小时)
+      hourHand.style.transform = `rotate(${h * 30}deg)`;
+
+      // 使用 requestAnimationFrame 请求浏览器在下一次重绘前再次调用 updateClock 函数
+      // 优势：大约每秒执行 60 次，与显示器刷新率同步，极其平滑，且页面隐藏时自动暂停（省电）
+      requestAnimationFrame(updateClock);
+    }
+
+    // 首次启动动画循环
+    requestAnimationFrame(updateClock);
+  </script>
+</body>
+</html>
